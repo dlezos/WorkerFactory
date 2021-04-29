@@ -19,4 +19,8 @@ public abstract class SomeWork implements Runnable {
     }
 
     abstract public void run();
+
+    public String getId() {
+        return id;
+    }
 }

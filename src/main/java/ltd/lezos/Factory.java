@@ -3,29 +3,37 @@ package ltd.lezos;
 import ltd.lezos.work.SomeDummyWork;
 import ltd.lezos.work.SomeLazyWork;
 import ltd.lezos.worker.Worker;
+import ltd.lezos.worker.WorkerCapacityReachedException;
 
 import static ltd.lezos.worker.WorkerState.*;
 
 public class Factory {
     public static void main(String[] args) {
-        System.out.println("Start-One");
-        testOne();
-        System.out.println("End-One");
-        System.out.println("Start-Two");
-        testTwo();
-        System.out.println("End-Two");
-        System.out.println("Start-Three");
-        testThree();
-        System.out.println("End-Three");
-        System.out.println("Start-Four");
-        testFour();
-        System.out.println("End-Four");
-        System.out.println("Start-Multiple");
-        testMultipleWorkers();
-        System.out.println("End-Multiple");
+        try {
+            System.out.println("Start-One");
+            testOne();
+            System.out.println("End-One");
+            System.out.println("Start-Two");
+            testTwo();
+            System.out.println("End-Two");
+            System.out.println("Start-Three");
+            testThree();
+            System.out.println("End-Three");
+            System.out.println("Start-Four");
+            testFour();
+            System.out.println("End-Four");
+            System.out.println("Start-Multiple");
+            testMultipleWorkers();
+            System.out.println("End-Multiple");
+            System.out.println("Start-Capacity Test");
+            testCapacity();
+            System.out.println("End-Capacity Test");
+        } catch (WorkerCapacityReachedException e) {
+            System.out.println("FAILURE: WorkerCapacityReachedException in main!");
+        }
     }
 
-    private static void testOne() {
+    private static void testOne() throws WorkerCapacityReachedException {
         // Create one worker
         Worker<SomeDummyWork> worker = new Worker<>();
         worker.setState(INITIAL);
@@ -45,7 +53,7 @@ public class Factory {
 //        worker.setState(STOPPED);
 //    }
 
-    private static void testTwo() {
+    private static void testTwo() throws WorkerCapacityReachedException {
         // Create one worker
         Worker<SomeDummyWork> worker = new Worker<>();
         worker.setState(INITIAL);
@@ -57,7 +65,7 @@ public class Factory {
         worker.setState(STOPPED);
     }
 
-    private static void testThree() {
+    private static void testThree() throws WorkerCapacityReachedException {
         // Create one worker
         Worker<SomeLazyWork> worker = new Worker<>();
         worker.setState(INITIAL);
@@ -68,7 +76,7 @@ public class Factory {
         worker.setState(STOPPED);
     }
 
-    private static void testFour() {
+    private static void testFour() throws WorkerCapacityReachedException {
         // Create one worker
         Worker<SomeLazyWork> worker = new Worker<>();
         worker.setState(INITIAL);
@@ -85,7 +93,7 @@ public class Factory {
         }
     }
 
-    private static void testMultipleWorkers() {
+    private static void testMultipleWorkers() throws WorkerCapacityReachedException {
         // Create three workers
         Worker<SomeLazyWork> worker1 = new Worker<>();
         worker1.setState(INITIAL);
@@ -111,6 +119,35 @@ public class Factory {
         worker2.setState(STOPPED);
         new Factory().waitOneSecond();
         worker3.setState(STOPPED);
+    }
+
+    private static void testCapacity() throws WorkerCapacityReachedException {
+        // Create one worker
+        Worker<SomeLazyWork> worker = new Worker<>();
+        worker.setMaxCapacity(10);
+        worker.setState(INITIAL);
+        // Add ten tasks
+        for(int i=0; i<10; i++) {
+            worker.addWorkPackage(new SomeLazyWork(i));
+        }
+        // Start consumption
+        worker.setState(OPERATIONAL);
+        // Wait a little
+        new Factory().waitOneSecond();
+        // Add another task
+        worker.addWorkPackage(new SomeLazyWork(11));
+        // Wait a little
+        new Factory().waitOneSecond();
+        // Add twenty tasks
+        try {
+            for (int i = 10; i < 20; i++) {
+                worker.addWorkPackage(new SomeLazyWork(i));
+            }
+        }catch (WorkerCapacityReachedException e) {
+            System.out.println("WorkerCapacityReachedException: " + e.getMessage());
+        } finally {
+            worker.setState(STOPPED);
+        }
     }
 
     private synchronized void waitOneSecond() {

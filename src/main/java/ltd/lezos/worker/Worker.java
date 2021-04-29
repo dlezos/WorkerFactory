@@ -10,13 +10,18 @@ import static ltd.lezos.worker.WorkerState.*;
 
 public class Worker<W extends SomeWork> implements WorkHandler<W> {
 
-    private List<W> tasks = new LinkedList<W>();
+    private BlockingQueue<Runnable> tasks = new LinkedBlockingQueue<Runnable>();
     private WorkerState state = INITIAL;
     private ExecutorService executor;
+    // Again this shouldn't be a magic number
+    private long maxCapacity = 1000;
 
     // Here we always accept work but in case of INITIAL or STOPPED we return false and let the caller
     // to decide if the work will be also sent to another worker
-    public boolean addWorkPackage(W work) {
+    public boolean addWorkPackage(W work) throws WorkerCapacityReachedException {
+        if (tasks.size() > maxCapacity) {
+            throw new WorkerCapacityReachedException(work.getId());
+        }
         if (state == OPERATIONAL) {
             executor.execute(work);
         } else {
@@ -25,8 +30,11 @@ public class Worker<W extends SomeWork> implements WorkHandler<W> {
         return state == OPERATIONAL;
     }
 
-    public boolean addWorkPackages(List<W> tasks) {
-        tasks.stream().forEach(w -> addWorkPackage(w));
+    // Here we might get the exception with the list partially committed which leaves us in state we don't want to be!
+    public boolean addWorkPackages(List<W> tasks) throws WorkerCapacityReachedException  {
+        for(W work:tasks) {
+            addWorkPackage(work);
+        }
         return state == OPERATIONAL;
     }
 
@@ -55,13 +63,18 @@ public class Worker<W extends SomeWork> implements WorkHandler<W> {
                 //If needed create the executor/threads
                 if(executor == null) {
                     // This should be customizable or even better decorated, certainly shouldn't use the magic number 3
-                    executor = Executors.newFixedThreadPool(3);
+                    executor = new ThreadPoolExecutor(3, 3, 60, TimeUnit.SECONDS, tasks);
                 }
-                List<W> existingTasks = tasks;
-                tasks = new LinkedList<W>();
-                existingTasks.stream().forEach(w -> executor.execute(w));
-                existingTasks = null;
+                //List<W> existingTasks = tasks;
+                //tasks = new LinkedList<W>();
+                //existingTasks.stream().forEach(w -> executor.execute(w));
+                //existingTasks = null;
                 break;
         }
+    }
+
+    @Override
+    public void setMaxCapacity(long maxCapacity) {
+        this.maxCapacity = maxCapacity;
     }
 }
