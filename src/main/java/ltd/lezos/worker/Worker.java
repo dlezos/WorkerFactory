@@ -22,7 +22,7 @@ public class Worker<W extends SomeWork> implements WorkHandler<W> {
         if (tasks.size() > maxCapacity) {
             throw new WorkerCapacityReachedException(work.getId());
         }
-        if (state == OPERATIONAL) {
+        if (state == OPERATIONAL && executor != null) {
             executor.execute(work);
         } else {
             tasks.add(work);
@@ -62,8 +62,14 @@ public class Worker<W extends SomeWork> implements WorkHandler<W> {
             case OPERATIONAL:
                 //If needed create the executor/threads
                 if(executor == null) {
+                    // Changed with the use of an intermediate queue since in JAVA 11 the existing Runnable in tasks do not get immediately executed
+                    BlockingQueue<Runnable> newTasks = new LinkedBlockingQueue<Runnable>();
                     // This should be customizable or even better decorated, certainly shouldn't use the magic number 3
-                    executor = new ThreadPoolExecutor(3, 3, 60, TimeUnit.SECONDS, tasks);
+                    executor = new ThreadPoolExecutor(3, 3, 60, TimeUnit.SECONDS, newTasks);
+                    for(Runnable work: tasks) {
+                        executor.execute(work);
+                    }
+                    tasks = newTasks;
                 }
                 //List<W> existingTasks = tasks;
                 //tasks = new LinkedList<W>();
